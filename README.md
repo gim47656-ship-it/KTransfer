@@ -34,17 +34,31 @@ CI(`.github/workflows/ci.yml`)도 같은 작업을 돌리고 디버그 APK를 `k
 
 ## 폰에 설치
 
-폰을 Windows에 USB로 연결하고(개발자 옵션의 USB 디버깅 켬) WSL에서 Windows `adb.exe`를 쓴다.
+WSL에서 Windows `adb.exe`를 쓴다. 폰은 USB 디버깅이나 무선 디버깅으로 연결한다. 무선 디버깅은 폰의 「페어링 코드로 기기 페어링」 화면에 나오는 주소·코드로 한 번 페어링한 뒤, 무선 디버깅 첫 화면의 주소로 연결한다.
 
 ```bash
 ADB=/mnt/c/Users/kkmin/AppData/Local/Android/Sdk/platform-tools/adb.exe
+$ADB pair <페어링 주소:포트> <6자리 코드>   # 무선 디버깅 처음 한 번
+$ADB connect <연결 주소:포트>
 $ADB devices
-$ADB install -r "$(wslpath -w androidApp/build/outputs/apk/debug/androidApp-debug.apk)"
+# adb.exe가 읽을 수 있게 APK를 Windows 임시 폴더로 복사해 설치
+mkdir -p /mnt/c/Users/kkmin/AppData/Local/Temp/ktransfer
+cp androidApp/build/outputs/apk/debug/androidApp-debug.apk /mnt/c/Users/kkmin/AppData/Local/Temp/ktransfer/
+$ADB install -r -g 'C:\Users\kkmin\AppData\Local\Temp\ktransfer\androidApp-debug.apk'
+```
+
+API 키는 앱 화면 입력란에 넣는다. 개발 중에는 디버그 앱의 설정 파일에 표준 입력으로 써 넣을 수 있다(키가 명령줄에 남지 않음, 앱을 멈춘 상태에서).
+
+```bash
+$ADB shell am force-stop com.kys.ktransfer
+printf "<?xml version='1.0' encoding='utf-8' standalone='yes' ?>\n<map>\n    <string name=\"apiKey\">%s</string>\n</map>\n" \
+  "$(grep '^gemini.apiKey=' local.properties | cut -d= -f2-)" \
+  | $ADB shell "run-as com.kys.ktransfer sh -c 'mkdir -p shared_prefs && cat > shared_prefs/ktransfer.xml'"
 ```
 
 ## 지연 측정
 
-WAV 파일을 실시간 속도로 흘려보내고 첫 입력 전사·첫 번역 음성이 도착한 시각을 출력한다. 입력은 1초 무음 → 음성 → 꼬리 무음(기본 8초) 순서다.
+WAV 파일을 실시간 속도로 흘려보내고 첫 입력 전사·첫 번역 음성이 도착한 시각을 출력한다. 입력은 1초 무음 → 음성 → 꼬리 무음(기본 8초) 순서다. 서버는 말이 끝난 뒤에도 무음 오디오를 보내므로, 실제 지연은 `last voiced audio`(RMS 300 초과 조각만 셈)를 본다.
 
 ```bash
 ./gradlew :desktopApp:liveProbe -PprobeArgs="<wav> <목표언어> [--resumption] [--out <wav>] [--tail <초>]"

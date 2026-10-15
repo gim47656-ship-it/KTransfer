@@ -84,6 +84,7 @@ class Interpreter(private val audio: AudioDevice) {
         var handle: String? = null
         var resumable = false
         var failures = 0
+        val seenOther = mutableSetOf<Set<String>>()
     }
 
     fun start(apiKey: String, options: RunOptions) {
@@ -240,7 +241,7 @@ class Interpreter(private val audio: AudioDevice) {
                 lane.resumable = event.resumable
                 updateLane(lane) { it.copy(resumable = event.resumable) }
             }
-            is ServerEvent.Other -> log("$tag 기타 메시지: ${event.keys}", lane)
+            is ServerEvent.Other -> if (lane.seenOther.add(event.keys)) log("$tag 기타 메시지(처음 1회): ${event.keys}", lane)
         }
     }
 

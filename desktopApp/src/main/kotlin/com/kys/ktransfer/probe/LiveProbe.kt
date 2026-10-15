@@ -60,6 +60,8 @@ fun main(args: Array<String>): Unit = runBlocking {
     var firstInput = -1L
     var firstAudio = -1L
     var lastAudio = -1L
+    var lastVoicedAudio = -1L
+    var voicedBytes = 0L
     var resumptionUpdates = 0
 
     val connection = launch {
@@ -75,6 +77,7 @@ fun main(args: Array<String>): Unit = runBlocking {
                     is ServerEvent.Audio -> {
                         if (firstAudio < 0 && speechStart >= 0) { firstAudio = now(); log("first translated audio") }
                         lastAudio = now()
+                        if (rms(event.pcm) > VOICED_RMS) { lastVoicedAudio = lastAudio; voicedBytes += event.pcm.size }
                         outputAudio.write(event.pcm)
                     }
                     ServerEvent.TurnComplete -> log("turnComplete")
@@ -121,7 +124,8 @@ fun main(args: Array<String>): Unit = runBlocking {
     println("first input transcript after speech start: ${if (firstInput >= 0) "${firstInput - speechStart} ms" else "none"}")
     println("first translated audio after speech start: ${if (firstAudio >= 0) "${firstAudio - speechStart} ms" else "none"}")
     println("last translated audio after speech end:    ${if (lastAudio >= 0) "${lastAudio - speechEnd} ms" else "none"}")
-    println("translated audio total: $outMs ms (input speech $speechMs ms)")
+    println("last voiced audio after speech end:        ${if (lastVoicedAudio >= 0) "${lastVoicedAudio - speechEnd} ms" else "none"}")
+    println("translated audio total: $outMs ms, voiced ${voicedBytes / 2 * 1000L / OUTPUT_SAMPLE_RATE} ms (input speech $speechMs ms)")
     println("input transcript:  ${inputText.toString().trim()}")
     println("output transcript: ${outputText.toString().trim()}")
     out?.let {
@@ -134,6 +138,18 @@ fun main(args: Array<String>): Unit = runBlocking {
 }
 
 private fun Array<String>.valueAfter(flag: String): String? = indexOf(flag).takeIf { it >= 0 }?.let { getOrNull(it + 1) }
+
+private const val VOICED_RMS = 300.0
+
+private fun rms(pcm: ByteArray): Double {
+    var sum = 0.0
+    val samples = pcm.size / 2
+    for (i in 0 until samples) {
+        val s = ((pcm[2 * i + 1].toInt() shl 8) or (pcm[2 * i].toInt() and 0xFF)).toShort().toDouble()
+        sum += s * s
+    }
+    return if (samples == 0) 0.0 else kotlin.math.sqrt(sum / samples)
+}
 
 private fun localProperty(name: String): String? {
     val file = File("local.properties").takeIf { it.isFile } ?: return null

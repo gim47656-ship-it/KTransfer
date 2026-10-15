@@ -92,7 +92,13 @@ fun parseServerMessage(raw: String): List<ServerEvent> {
     root.obj("sessionResumptionUpdate")?.let {
         events += ServerEvent.Resumption(it.str("newHandle"), it.bool("resumable"))
     }
-    if (events.isEmpty()) events += ServerEvent.Other(root.keys)
+    if (events.isEmpty()) {
+        events += ServerEvent.Other(
+            root.entries.flatMapTo(mutableSetOf()) { (key, value) ->
+                if (key == "serverContent" && value is JsonObject) value.keys.map { "serverContent.$it" } else listOf(key)
+            },
+        )
+    }
     return events
 }
 
