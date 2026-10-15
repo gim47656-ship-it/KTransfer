@@ -1,0 +1,20 @@
+*.iml
+.kotlin
+.gradle
+**/build/
+!src/**/build/
+.idea
+.DS_Store
+captures
+.externalNativeBuild
+.cxx
+
+# Secrets and machine-local settings: never commit.
+local.properties
+.env
+.env.*
+*.jks
+*.keystore
+*.p12
+secrets.properties
+google-services.json
